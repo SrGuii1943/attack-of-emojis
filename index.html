@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Attack of Emojis - PRO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #fbbf24;
+            --secondary: #f59e0b;
+            --bg-dark: #0f172a;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: 'Poppins', sans-serif;
+            user-select: none;
+            color: white;
+        }
+        h1, h2, .font-bungee { font-family: 'Bungee', cursive; }
+        
+        #game-canvas { display: block; touch-action: none; }
+
+        /* UI Styling */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .btn-upgrade {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .btn-upgrade:active { transform: scale(0.9); }
+        .btn-upgrade:disabled { opacity: 0.5; filter: grayscale(1); }
+
+        @keyframes pulse-gold {
+            0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(251, 191, 36, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+        }
+        .animate-gold { animation: pulse-gold 2s infinite; }
+
+        /* Loading Animation */
+        .loader-ring {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid transparent;
+            border-top-color: var(--primary);
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- TELA DE CARREGAMENTO -->
+    <div id="loading-screen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center">
+        <div class="relative flex items-center justify-center mb-8">
+            <div class="loader-ring"></div>
+            <div class="absolute text-4xl">😈</div>
+        </div>
+        <h1 class="text-4xl text-yellow-500 mb-2 tracking-tighter">ATTACK OF EMOJIS</h1>
+        <div class="flex flex-col items-center opacity-60">
+            <p class="text-sm">Criador: <span class="font-bold">Guilherme Zampieri</span></p>
+            <p class="text-[10px] font-mono mt-1">v1.09.43 BETA</p>
+        </div>
+        <div class="w-64 h-1.5 bg-slate-800 rounded-full mt-10 overflow-hidden">
+            <div id="loading-bar" class="h-full bg-yellow-500 w-0 transition-all duration-300"></div>
+        </div>
+    </div>
+
+    <!-- HUD PRINCIPAL -->
+    <div id="hud" class="fixed inset-0 pointer-events-none hidden z-10 p-4 flex flex-col justify-between">
+        <div class="flex justify-between items-start">
+            <!-- Moedas -->
+            <div class="glass-panel p-3 rounded-2xl flex items-center gap-3 animate-gold pointer-events-auto">
+                <div class="text-3xl">💰</div>
+                <div>
+                    <div id="coin-display" class="text-2xl font-bungee text-yellow-400">0</div>
+                    <div class="text-[9px] uppercase tracking-widest opacity-60">Emojis Coins</div>
+                </div>
+            </div>
+
+            <!-- Nível e Wall -->
+            <div class="text-right">
+                <div class="glass-panel px-4 py-2 rounded-xl mb-2">
+                    <span class="text-xs uppercase opacity-60">Nível</span>
+                    <span id="level-display" class="text-xl font-bungee ml-2 text-yellow-500">1</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botão de Loja Flutuante -->
+        <div class="flex justify-center mb-6">
+            <button id="open-shop" class="pointer-events-auto btn-upgrade text-black px-10 py-4 rounded-full font-bungee shadow-2xl flex items-center gap-3 active:scale-95 transition-transform">
+                <span>🛠</span> MELHORIAS
+            </button>
+        </div>
+    </div>
+
+    <!-- LOJA MODAL -->
+    <div id="shop-modal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-[2.5rem] border-t border-white/20 p-8 max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-3xl font-bungee text-yellow-500">OFICINA</h2>
+                <button id="close-shop" class="w-10 h-10 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-red-500 transition-colors">✕</button>
+            </div>
+
+            <div class="space-y-4 overflow-y-auto pr-2 custom-scroll">
+                <!-- Upgrade Dano -->
+                <div class="bg-slate-900/50 p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-2xl bg-red-500/20 flex items-center justify-center text-2xl">💪</div>
+                        <div>
+                            <div class="font-bold text-white">FORÇA</div>
+                            <div class="text-xs text-gray-500">Level <span id="dmg-lvl">1</span></div>
+                        </div>
+                    </div>
+                    <button id="buy-dmg" class="btn-upgrade text-black px-5 py-2 rounded-xl font-bold text-sm shadow-lg">
+                        <span id="dmg-cost">50</span> 💰
+                    </button>
+                </div>
+
+                <!-- Upgrade Velocidade -->
+                <div class="bg-slate-900/50 p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-2xl">⚡</div>
+                        <div>
+                            <div class="font-bold text-white">IMPULSO</div>
+                            <div class="text-xs text-gray-500">Level <span id="spd-lvl">1</span></div>
+                        </div>
+                    </div>
+                    <button id="buy-spd" class="btn-upgrade text-black px-5 py-2 rounded-xl font-bold text-sm shadow-lg">
+                        <span id="spd-cost">100</span> 💰
+                    </button>
+                </div>
+
+                <!-- Adicionar Novo Emoji -->
+                <div class="bg-slate-900/50 p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-2xl bg-green-500/20 flex items-center justify-center text-2xl">🔥</div>
+                        <div>
+                            <div class="font-bold text-white">RECRUTAR  EMOJIS</div>
+                            <div class="text-xs text-gray-400"><span id="team-count">1</span> Membros</div>
+                        </div>
+                    </div>
+                    <button id="buy-emoji" class="btn-upgrade text-black px-5 py-2 rounded-xl font-bold text-sm shadow-lg">
+                        <span id="emoji-cost">500</span> 💰
+                    </button>
+                </div>
+            </div>
+            
+            <p class="text-center text-[9px] text-gray-600 mt-8 tracking-widest uppercase">Guilherme Zampieri Produções</p>
+        </div>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <script>
+        /** CONFIGURAÇÕES DO MOTOR DE JOGO **/
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const state = {
+            coins: 0,
+            damage: 10,
+            speed: 4,
+            level: 1,
+            cameraY: 0,
+            targetCameraY: 0,
+            walls: [], // Array de paredes (niveis)
+            units: [], // Emojis que atacam
+            particles: [],
+            floatingTexts: [],
+            upgrades: {
+                damage: { level: 1, cost: 50 },
+                speed: { level: 1, cost: 100 },
+                team: { count: 1, cost: 500 }
+            }
+        };
+
+        const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+        const EMOJI_LIST = ['😈', '🤡', '👽', '🤖', '💀', '👺', '🦁', '🐉', '🤺'];
+
+        class Block {
+            constructor(x, y, w, h, hp, color) {
+                this.x = x;
+                this.y = y;
+                this.w = w;
+                this.h = h;
+                this.maxHp = hp;
+                this.hp = hp;
+                this.color = color;
+                this.alive = true;
+            }
+
+            draw() {
+                if(!this.alive) return;
+                
+                const brightness = 40 + (this.hp / this.maxHp) * 40;
+                ctx.fillStyle = `hsl(${this.color}, 70%, ${brightness}%)`;
+                ctx.strokeStyle = `hsl(${this.color}, 80%, 30%)`;
+                ctx.lineWidth = 2;
+
+                // Desenha o bloco com bordas
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y - state.cameraY, this.w, this.h, 4);
+                ctx.fill();
+                ctx.stroke();
+
+                // Detalhe de luz no bloco
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                ctx.fillRect(this.x, this.y - state.cameraY, this.w, this.h/3);
+            }
+        }
+
+        class Wall {
+            constructor(level, startY) {
+                this.level = level;
+                this.startY = startY;
+                this.blocks = [];
+                this.rows = 4 + Math.floor(level / 2);
+                this.cols = 5;
+                this.blockW = canvas.width / this.cols;
+                this.blockH = 40;
+                this.hpPerBlock = 20 * Math.pow(1.4, level - 1);
+                this.colorBase = Math.random() * 360;
+                this.completed = false;
+
+                this.init();
+            }
+
+            init() {
+                for(let r = 0; r < this.rows; r++) {
+                    for(let c = 0; c < this.cols; c++) {
+                        this.blocks.push(new Block(
+                            c * this.blockW,
+                            this.startY + (r * this.blockH),
+                            this.blockW,
+                            this.blockH,
+                            this.hpPerBlock,
+                            this.colorBase
+                        ));
+                    }
+                }
+            }
+
+            draw() {
+                this.blocks.forEach(b => b.draw());
+            }
+
+            isCleared() {
+                return !this.blocks.some(b => b.alive);
+            }
+        }
+
+        class Unit {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.emoji = EMOJI_LIST[Math.floor(Math.random() * EMOJI_LIST.length)];
+                this.radius = 18;
+                this.vx = (Math.random() - 0.5) * state.speed * 2;
+                this.vy = -state.speed;
+                this.rot = 0;
+                this.vRot = (Math.random() - 0.5) * 0.2;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.rot += this.vRot;
+
+                // Bounce paredes laterais
+                if (this.x < this.radius || this.x > canvas.width - this.radius) {
+                    this.vx *= -1;
+                    this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                }
+
+                // Teto e Chão da área ativa
+                const limitTop = state.cameraY;
+                const limitBottom = state.cameraY + canvas.height;
+
+                if (this.y < limitTop + this.radius) {
+                    this.vy *= -1;
+                    this.y = limitTop + this.radius;
+                }
+                
+                if (this.y > limitBottom - this.radius) {
+                    this.vy *= -1;
+                    this.y = limitBottom - this.radius;
+                }
+
+                // Colisão com Blocos
+                state.walls.forEach(wall => {
+                    wall.blocks.forEach(block => {
+                        if (block.alive) {
+                            if (this.checkCollision(block)) {
+                                this.resolveCollision(block);
+                            }
+                        }
+                    });
+                });
+            }
+
+            checkCollision(b) {
+                return (this.x + this.radius > b.x && this.x - this.radius < b.x + b.w &&
+                        this.y + this.radius > b.y && this.y - this.radius < b.y + b.h);
+            }
+
+            resolveCollision(b) {
+                // Determina lado da colisão simples
+                const midX = b.x + b.w/2;
+                const midY = b.y + b.h/2;
+                
+                if (Math.abs(this.x - midX) > Math.abs(this.y - midY)) {
+                    this.vx *= -1;
+                } else {
+                    this.vy *= -1;
+                }
+
+                // Dano e Moedas
+                b.hp -= state.damage;
+                state.coins += Math.ceil(state.damage / 5);
+                
+                createParticles(this.x, this.y, `hsl(${b.color}, 70%, 50%)`, 4);
+                
+                if (b.hp <= 0) {
+                    b.alive = false;
+                    state.coins += 50 * state.level;
+                    createFloatingText(b.x + b.w/2, b.y + b.h/2, "BOOM!", "#fbbf24");
+                }
+                updateUI();
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y - state.cameraY);
+                ctx.rotate(this.rot);
+                ctx.font = '32px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.emoji, 0, 0);
+                ctx.restore();
+            }
+        }
+
+        /** UTILITÁRIOS **/
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                state.particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 1,
+                    size: Math.random() * 4 + 2,
+                    color
+                });
+            }
+        }
+
+        function createFloatingText(x, y, text, color) {
+            state.floatingTexts.push({ x, y, text, color, life: 1 });
+        }
+
+        /** CORE LOGIC **/
+        function init() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Simulação de Loading
+            let p = 0;
+            const t = setInterval(() => {
+                p += 4;
+                document.getElementById('loading-bar').style.width = p + '%';
+                if(p >= 100) {
+                    clearInterval(t);
+                    setTimeout(() => {
+                        document.getElementById('loading-screen').style.display = 'none';
+                        document.getElementById('hud').classList.remove('hidden');
+                        setupGame();
+                    }, 500);
+                }
+            }, 80);
+        }
+
+        function setupGame() {
+            // Cria primeira parede
+            state.walls.push(new Wall(1, canvas.height * 0.4));
+            state.units.push(new Unit(canvas.width/2, canvas.height * 0.2));
+            
+            setupShop();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Câmera Suave
+            state.cameraY += (state.targetCameraY - state.cameraY) * 0.05;
+
+            // Background Gradiente
+            const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bg.addColorStop(0, '#0f172a');
+            bg.addColorStop(1, '#1e293b');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Desenhar Níveis
+            state.walls.forEach(wall => {
+                wall.draw();
+                if(!wall.completed && wall.isCleared()) {
+                    wall.completed = true;
+                    advanceLevel();
+                }
+            });
+
+            // Emojis
+            state.units.forEach(u => {
+                u.update();
+                u.draw();
+            });
+
+            // Efeitos Visuais
+            updateVisualEffects();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function advanceLevel() {
+            state.level++;
+            const lastWall = state.walls[state.walls.length - 1];
+            const newY = lastWall.startY + (lastWall.rows * lastWall.blockH) + 300;
+            
+            state.walls.push(new Wall(state.level, newY));
+            state.targetCameraY = newY - canvas.height * 0.3;
+            
+            createFloatingText(canvas.width/2, canvas.height/2 + state.cameraY, `NÍVEL ${state.level}`, "#f59e0b");
+            updateUI();
+        }
+
+        function updateVisualEffects() {
+            // Partículas
+            for(let i = state.particles.length - 1; i >= 0; i--) {
+                const p = state.particles[i];
+                p.x += p.vx; p.y += p.vy; p.life -= 0.03;
+                if(p.life <= 0) state.particles.splice(i, 1);
+                else {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life;
+                    ctx.fillRect(p.x, p.y - state.cameraY, p.size, p.size);
+                    ctx.globalAlpha = 1;
+                }
+            }
+
+            // Textos
+            for(let i = state.floatingTexts.length - 1; i >= 0; i--) {
+                const f = state.floatingTexts[i];
+                f.y -= 2; f.life -= 0.02;
+                if(f.life <= 0) state.floatingTexts.splice(i, 1);
+                else {
+                    ctx.fillStyle = f.color;
+                    ctx.font = 'bold 24px Bungee';
+                    ctx.globalAlpha = f.life;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(f.text, f.x, f.y - state.cameraY);
+                    ctx.globalAlpha = 1;
+                }
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('coin-display').innerText = Math.floor(state.coins);
+            document.getElementById('level-display').innerText = state.level;
+            
+            document.getElementById('dmg-lvl').innerText = state.upgrades.damage.level;
+            document.getElementById('dmg-cost').innerText = state.upgrades.damage.cost;
+            
+            document.getElementById('spd-lvl').innerText = state.upgrades.speed.level;
+            document.getElementById('spd-cost').innerText = state.upgrades.speed.cost;
+            
+            document.getElementById('team-count').innerText = state.upgrades.team.count;
+            document.getElementById('emoji-cost').innerText = state.upgrades.team.cost;
+
+            // Desabilitar botões se não houver dinheiro
+            document.getElementById('buy-dmg').disabled = state.coins < state.upgrades.damage.cost;
+            document.getElementById('buy-spd').disabled = state.coins < state.upgrades.speed.cost;
+            document.getElementById('buy-emoji').disabled = state.coins < state.upgrades.team.cost;
+        }
+
+        function setupShop() {
+            const modal = document.getElementById('shop-modal');
+            document.getElementById('open-shop').onclick = () => modal.classList.replace('hidden', 'flex');
+            document.getElementById('close-shop').onclick = () => modal.classList.replace('flex', 'hidden');
+
+            document.getElementById('buy-dmg').onclick = () => {
+                if(state.coins >= state.upgrades.damage.cost) {
+                    state.coins -= state.upgrades.damage.cost;
+                    state.damage += 8;
+                    state.upgrades.damage.level++;
+                    state.upgrades.damage.cost = Math.floor(state.upgrades.damage.cost * 1.5);
+                    updateUI();
+                }
+            };
+
+            document.getElementById('buy-spd').onclick = () => {
+                if(state.coins >= state.upgrades.speed.cost) {
+                    state.coins -= state.upgrades.speed.cost;
+                    state.speed += 0.6;
+                    state.upgrades.speed.level++;
+                    state.upgrades.speed.cost = Math.floor(state.upgrades.speed.cost * 1.7);
+                    state.units.forEach(u => {
+                        const m = Math.sqrt(u.vx**2 + u.vy**2);
+                        u.vx = (u.vx/m) * state.speed;
+                        u.vy = (u.vy/m) * state.speed;
+                    });
+                    updateUI();
+                }
+            };
+
+            document.getElementById('buy-emoji').onclick = () => {
+                if(state.coins >= state.upgrades.team.cost) {
+                    state.coins -= state.upgrades.team.cost;
+                    state.upgrades.team.count++;
+                    state.units.push(new Unit(canvas.width/2, state.cameraY + 100));
+                    state.upgrades.team.cost = Math.floor(state.upgrades.team.cost * 2.2);
+                    updateUI();
+                }
+            };
+            updateUI();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
